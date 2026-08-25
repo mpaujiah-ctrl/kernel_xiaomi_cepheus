@@ -53,10 +53,18 @@ jobs:
 
       - name: Fetch prebuilt clang (r383902, matches build.config.common)
         run: |
-          mkdir -p prebuilts-master/clang/host/linux-x86
-          git clone --depth=1 -b llvm-r383902 \
-            https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 \
-            prebuilts-master/clang/host/linux-x86/clang-r383902
+          # clang-r383902 is NOT a branch in this repo — it's a subfolder
+          # inside the (huge) master branch alongside every other clang
+          # version ever shipped. Cloning the repo is both wrong (branch
+          # doesn't exist) and heavy. Pull just that folder as a tarball
+          # via Gitiles' archive endpoint instead.
+          mkdir -p prebuilts-master/clang/host/linux-x86/clang-r383902
+          curl -LSs \
+            "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/master/clang-r383902.tar.gz" \
+            -o clang.tar.gz
+          tar -xzf clang.tar.gz -C prebuilts-master/clang/host/linux-x86/clang-r383902
+          rm -f clang.tar.gz
+          chmod -R +x prebuilts-master/clang/host/linux-x86/clang-r383902/bin
           # Sanity check: fail fast if clang isn't actually there instead of
           # discovering it 40 minutes into the build.
           test -x prebuilts-master/clang/host/linux-x86/clang-r383902/bin/clang
