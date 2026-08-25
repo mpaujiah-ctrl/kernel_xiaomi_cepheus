@@ -78,6 +78,12 @@ jobs:
           # Sanity check: fail fast if clang isn't actually there instead of
           # discovering it 40 minutes into the build.
           test -x prebuilts-master/clang/host/linux-x86/clang-r383902/bin/clang
+          # CROSS_COMPILE=aarch64-linux-gnu- depends on this prebuilt bundling
+          # matching cross tool symlinks (ld, ar, nm, etc). Confirm at least
+          # one exists now rather than hitting a confusing failure deep in
+          # the actual kernel compile later.
+          ls prebuilts-master/clang/host/linux-x86/clang-r383902/bin/aarch64-linux-gnu-* >/dev/null 2>&1 || \
+            echo "WARNING: no aarch64-linux-gnu-* tools found in this clang prebuilt — CROSS_COMPILE may need a different prefix, check bin/ contents"
 
       - name: Fetch build-tools (fetch_fpath / gen_headers deps)
         run: |
@@ -135,7 +141,19 @@ jobs:
           export ARCH=arm64
           export CC=clang
           export LD=ld.lld
-          make O=out ARCH=arm64 CC=clang "${{ github.event.inputs.defconfig }}"
+          # CROSS_COMPILE/CLANG_TRIPLE are mandatory here — without a target
+          # triple, clang defaults to compiling for the *host* arch
+          # (x86_64), not arm64. That mismatch is what produced the later
+          # "register 'sp' unsuitable" and "'I' constraint" errors: those
+          # are ARM64 asm constraints being fed to an x86_64 target.
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
+          export CLANG_TRIPLE=aarch64-linux-gnu-
+          make O=out ARCH=arm64 CC=clang \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            "${{ github.event.inputs.defconfig }}"
 
       - name: Enable KSUN + SUSFS Kconfig options
         run: |
@@ -159,7 +177,9 @@ jobs:
             -e KSU_SUSFS_TRY_UMOUNT \
             -e KSU_SUSFS_SPOOF_UNAME \
             -e KSU_SUSFS_ENABLE_LOG
-          make O=out ARCH=arm64 CC=clang olddefconfig
+          make O=out ARCH=arm64 CC=clang \
+            CROSS_COMPILE=aarch64-linux-gnu- CLANG_TRIPLE=aarch64-linux-gnu- \
+            olddefconfig
 
       - name: Build kernel
         run: |
@@ -167,11 +187,18 @@ jobs:
           export PATH="$PWD/prebuilts-master/clang/host/linux-x86/clang-r383902/bin:$PATH"
           # This old CAF 4.14 tree's scripts/dtc/Makefile doesn't run the
           # pkg-config auto-detection modern kernels use to add -lyaml when
-          # linking scripts/dtc/dtc — it compiles yamltree.o unconditionally
-          # but never links libyaml, so it always fails with undefined
-          # yaml_* references. Force it via HOSTLDLIBS_dtc instead of
-          # patching the Makefile.
-          make O=out ARCH=arm64 CC=clang LD=ld.lld HOSTLDLIBS_dtc="-lyaml" \
+          # linking scripts/dtc/dtc. Force it via both HOSTLDLIBS_dtc (kbuild
+          # 4.18+ name) and HOSTLOADLIBES_dtc (the pre-4.18 name this 4.14
+          # tree actually uses) since HOSTLDLIBS_dtc alone had no effect.
+          #
+          # CROSS_COMPILE/CLANG_TRIPLE: same reasoning as the defconfig step
+          # — required so clang targets arm64 instead of silently defaulting
+          # to the runner's host arch.
+          make O=out ARCH=arm64 CC=clang LD=ld.lld \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            HOSTLDLIBS_dtc="-lyaml" HOSTLOADLIBES_dtc="-lyaml" \
             -j$(nproc --all) 2>&1 | tee build.log
           # Belt-and-suspenders: even with pipefail, explicitly confirm the
           # actual kernel image exists before calling this step successful,
