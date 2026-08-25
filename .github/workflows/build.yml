@@ -153,13 +153,17 @@ jobs:
 
       - name: Patch python2-only scripts for python3 compat
         run: |
-          # mkdtboimg.py (used to build dtbo.img) is written for python2
-          # and Ubuntu no longer ships a python2 interpreter at all. The
-          # python2->python3 symlink shim from earlier gets it running, but
-          # it still uses py2-only syntax (xrange) that doesn't exist in
-          # py3 and throws a NameError. Patch it in place instead.
+          # mkdtboimg.py in this old tree is genuinely written for python2
+          # (xrange, str/bytes mixing) — Ubuntu no longer ships python2 at
+          # all, and patching every py2/py3 incompatibility one at a time
+          # is a losing game. AOSP's current libufdt tree has a fully
+          # ported python3-native version with the same CLI (create/dump/
+          # cfg_create), so just replace the file wholesale.
           if [ -f scripts/dtc/mkdtboimg.py ]; then
-            sed -i 's/\bxrange(/range(/g' scripts/dtc/mkdtboimg.py
+            curl -LSs "https://android.googlesource.com/platform/system/libufdt/+/refs/heads/main/utils/src/mkdtboimg.py?format=TEXT" \
+              | base64 -d > scripts/dtc/mkdtboimg.py
+            chmod +x scripts/dtc/mkdtboimg.py
+            head -1 scripts/dtc/mkdtboimg.py | grep -q python3 || { echo "Replacement mkdtboimg.py doesn't look right"; exit 1; }
           fi
 
       - name: Configure defconfig
