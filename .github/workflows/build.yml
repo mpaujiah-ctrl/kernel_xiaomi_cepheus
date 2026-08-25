@@ -53,26 +53,23 @@ jobs:
 
       - name: Fetch prebuilt clang (r383902, matches build.config.common)
         run: |
-          # clang-r383902 is a subfolder inside master, alongside every
-          # other clang version ever shipped (repo is huge). The Gitiles
-          # +archive endpoint silently returns an HTML error page instead
-          # of a tarball once a requested path is too large/slow, which is
-          # exactly what happened (curl saved that HTML as "clang.tar.gz").
-          # Partial clone + sparse-checkout avoids that limit entirely and
-          # only fetches blobs for the one folder we need.
-          mkdir -p prebuilts-master/clang/host/linux-x86
-          git clone --filter=blob:none --no-checkout --depth=50 \
-            -b master \
-            https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 \
-            clang-repo-tmp
-          cd clang-repo-tmp
-          git sparse-checkout init --cone
-          git sparse-checkout set clang-r383902
-          git checkout master
-          cd ..
-          mv clang-repo-tmp/clang-r383902 \
-            prebuilts-master/clang/host/linux-x86/clang-r383902
-          rm -rf clang-repo-tmp
+          # clang-r383902 has since been pruned from the tip of `master`
+          # (Google periodically drops old prebuilts from HEAD to keep the
+          # live branch smaller) — that's why both the earlier archive
+          # attempt against master and the sparse-checkout attempt came up
+          # empty. It's still present on old release tags though, e.g.
+          # android-11.0.0_r28, which is what this exact toolchain shipped
+          # with. Confirmed working pattern from the kernel-building
+          # community, so we pin to that tag instead of a moving branch.
+          mkdir -p prebuilts-master/clang/host/linux-x86/clang-r383902
+          curl -LSsf \
+            "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/tags/android-11.0.0_r28/clang-r383902.tar.gz" \
+            -o clang.tar.gz
+          # Verify we actually got a gzip file, not an HTML error page,
+          # before handing it to tar (this is exactly what bit us last run).
+          file clang.tar.gz | grep -qi gzip || { echo "Download is not a valid gzip file:"; file clang.tar.gz; head -c 300 clang.tar.gz; exit 1; }
+          tar -xzf clang.tar.gz -C prebuilts-master/clang/host/linux-x86/clang-r383902
+          rm -f clang.tar.gz
           chmod -R +x prebuilts-master/clang/host/linux-x86/clang-r383902/bin
           # Sanity check: fail fast if clang isn't actually there instead of
           # discovering it 40 minutes into the build.
