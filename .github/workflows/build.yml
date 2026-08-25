@@ -195,6 +195,15 @@ jobs:
             -d CC_STACKPROTECTOR_STRONG \
             -d CC_STACKPROTECTOR_REGULAR \
             -e CC_STACKPROTECTOR_NONE
+          # The 32-bit compat VDSO's link step calls $(LD), which we've
+          # forced globally to ld.lld for the main 64-bit build — it never
+          # picks up the arm-linux-gnueabi cross linker meant for that one
+          # target, hence "cannot represent machine 'arm'". Untangling that
+          # routing in this old vdso32 Makefile isn't worth it if 32-bit
+          # app support isn't actually needed day-to-day — disable it here.
+          # If you do need 32-bit app compatibility, flag it and we'll fix
+          # the linker routing properly instead of disabling this.
+          ./scripts/config --file out/.config -d COMPAT_VDSO
           make O=out ARCH=arm64 CC=clang \
             CROSS_COMPILE=aarch64-linux-gnu- CLANG_TRIPLE=aarch64-linux-gnu- \
             olddefconfig
