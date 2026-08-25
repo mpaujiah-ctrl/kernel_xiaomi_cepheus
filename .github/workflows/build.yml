@@ -135,8 +135,17 @@ jobs:
 
       - name: Enable KSUN + SUSFS Kconfig options
         run: |
-          cd out
-          ./scripts/config --file .config \
+          # scripts/config lives in the source tree root, not inside out/
+          # (only .config and build artifacts get generated there) — call
+          # it from root and point --file at out/.config instead of cd-ing
+          # into out first.
+          if [ ! -f scripts/config ]; then
+            echo "scripts/config missing from this tree, fetching upstream copy"
+            curl -LSs -o scripts/config \
+              "https://raw.githubusercontent.com/torvalds/linux/master/scripts/config"
+          fi
+          chmod +x scripts/config
+          ./scripts/config --file out/.config \
             -e KSU \
             -e KSU_SUSFS \
             -e KSU_SUSFS_HAS_MAGIC_MOUNT \
@@ -146,7 +155,6 @@ jobs:
             -e KSU_SUSFS_TRY_UMOUNT \
             -e KSU_SUSFS_SPOOF_UNAME \
             -e KSU_SUSFS_ENABLE_LOG
-          cd ..
           make O=out ARCH=arm64 CC=clang olddefconfig
 
       - name: Build kernel
