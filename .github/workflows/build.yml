@@ -40,9 +40,13 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            bc bison flex libssl-dev libelf-dev dwarves libyaml-dev \
+            bc bison flex libssl-dev libelf-dev dwarves libyaml-dev pkg-config \
             build-essential ccache git curl python3 python3-pip \
             zip unzip device-tree-compiler rsync
+          # Sanity check: fail fast here if dtc's yaml link dependency isn't
+          # actually resolvable, instead of 20 minutes into the build.
+          pkg-config --exists yaml-0.1 && echo "libyaml OK: $(pkg-config --modversion yaml-0.1)" || {
+            echo "pkg-config cannot find yaml-0.1.pc — dtc build will fail to link"; exit 1; }
 
       - name: Setup ccache
         uses: hendrikmuhs/ccache-action@v1.2
