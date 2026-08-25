@@ -52,6 +52,13 @@ jobs:
           # aarch64-linux-gnu-as is on PATH — that's what happened before
           # this package was added).
           command -v aarch64-linux-gnu-as >/dev/null || { echo "aarch64-linux-gnu-as still missing after install"; exit 1; }
+          # dtbo.img packaging (mkdtboimg.py) hardcodes a call to `python2`,
+          # which Ubuntu dropped from its repos entirely a few releases ago.
+          # The script itself is generally py2/py3 compatible, so shim
+          # python2 -> python3 rather than fighting to install real py2.
+          if ! command -v python2 >/dev/null; then
+            sudo ln -s "$(command -v python3)" /usr/local/bin/python2
+          fi
           # Sanity check: fail fast here if dtc's yaml link dependency isn't
           # actually resolvable, instead of 20 minutes into the build.
           pkg-config --exists yaml-0.1 && echo "libyaml OK: $(pkg-config --modversion yaml-0.1)" || {
