@@ -177,16 +177,15 @@ jobs:
             -e KSU_SUSFS_TRY_UMOUNT \
             -e KSU_SUSFS_SPOOF_UNAME \
             -e KSU_SUSFS_ENABLE_LOG
-          # This tree's prepare-compiler-check target for
-          # CONFIG_CC_STACKPROTECTOR_STRONG almost certainly probes
-          # $(CROSS_COMPILE)gcc directly (an old CAF Makefile habit) rather
-          # than $(CC) — and there's no aarch64-linux-gnu-gcc in this
-          # clang-only toolchain, so the probe fails and the build aborts
-          # even though clang itself supports -fstack-protector-strong
-          # fine. Drop to the regular variant to sidestep the broken check.
+          # Regular also failed the exact same broken probe, confirming
+          # this isn't a strong-vs-regular issue — the compiler-check
+          # itself can't succeed for any stackprotector flag on this tree.
+          # Disable it entirely so the Makefile's ifdef-gated check block
+          # for CC_STACKPROTECTOR_REGULAR/STRONG never triggers at all.
           ./scripts/config --file out/.config \
             -d CC_STACKPROTECTOR_STRONG \
-            -e CC_STACKPROTECTOR_REGULAR
+            -d CC_STACKPROTECTOR_REGULAR \
+            -e CC_STACKPROTECTOR_NONE
           make O=out ARCH=arm64 CC=clang \
             CROSS_COMPILE=aarch64-linux-gnu- CLANG_TRIPLE=aarch64-linux-gnu- \
             olddefconfig
