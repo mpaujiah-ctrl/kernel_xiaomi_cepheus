@@ -14,7 +14,7 @@ on:
       defconfig:
         description: "Defconfig target"
         required: false
-        default: "vendor/xiaomi/cepheus_defconfig"
+        default: "cepheus_defconfig"
 
 # Keep it light: single job, no matrix, ccache for incremental speed.
 jobs:
