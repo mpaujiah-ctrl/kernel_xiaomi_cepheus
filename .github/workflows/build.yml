@@ -42,7 +42,16 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             bc bison flex libssl-dev libelf-dev dwarves libyaml-dev pkg-config \
             build-essential ccache git curl python3 python3-pip \
-            zip unzip device-tree-compiler rsync
+            zip unzip device-tree-compiler rsync \
+            binutils-aarch64-linux-gnu binutils-arm-linux-gnueabi
+          # Sanity check: confirm the actual cross assembler this build
+          # depends on exists before spending 40 minutes to find out via a
+          # cryptic "/usr/bin/as: unrecognized option '-EL'" deep in a
+          # nested vdso/Makefile build (clang silently falls back to the
+          # host's plain /usr/bin/as when -no-integrated-as is set but no
+          # aarch64-linux-gnu-as is on PATH — that's what happened before
+          # this package was added).
+          command -v aarch64-linux-gnu-as >/dev/null || { echo "aarch64-linux-gnu-as still missing after install"; exit 1; }
           # Sanity check: fail fast here if dtc's yaml link dependency isn't
           # actually resolvable, instead of 20 minutes into the build.
           pkg-config --exists yaml-0.1 && echo "libyaml OK: $(pkg-config --modversion yaml-0.1)" || {
