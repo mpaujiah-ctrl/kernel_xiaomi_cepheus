@@ -40,7 +40,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            bc bison flex libssl-dev libelf-dev dwarves \
+            bc bison flex libssl-dev libelf-dev dwarves libyaml-dev \
             build-essential ccache git curl python3 python3-pip \
             zip unzip device-tree-compiler rsync
 
@@ -159,9 +159,18 @@ jobs:
 
       - name: Build kernel
         run: |
+          set -o pipefail
           export PATH="$PWD/prebuilts-master/clang/host/linux-x86/clang-r383902/bin:$PATH"
           make O=out ARCH=arm64 CC=clang LD=ld.lld \
             -j$(nproc --all) 2>&1 | tee build.log
+          # Belt-and-suspenders: even with pipefail, explicitly confirm the
+          # actual kernel image exists before calling this step successful,
+          # so a silent early failure can never again slip through as green.
+          test -f out/arch/arm64/boot/Image || test -f out/arch/arm64/boot/Image.gz || {
+            echo "Build did not produce a kernel Image — see build.log"
+            tail -n 80 build.log
+            exit 1
+          }
 
       - name: Package AnyKernel3 zip
         run: |
