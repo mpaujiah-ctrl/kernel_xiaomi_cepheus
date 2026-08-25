@@ -165,7 +165,13 @@ jobs:
         run: |
           set -o pipefail
           export PATH="$PWD/prebuilts-master/clang/host/linux-x86/clang-r383902/bin:$PATH"
-          make O=out ARCH=arm64 CC=clang LD=ld.lld \
+          # This old CAF 4.14 tree's scripts/dtc/Makefile doesn't run the
+          # pkg-config auto-detection modern kernels use to add -lyaml when
+          # linking scripts/dtc/dtc — it compiles yamltree.o unconditionally
+          # but never links libyaml, so it always fails with undefined
+          # yaml_* references. Force it via HOSTLDLIBS_dtc instead of
+          # patching the Makefile.
+          make O=out ARCH=arm64 CC=clang LD=ld.lld HOSTLDLIBS_dtc="-lyaml" \
             -j$(nproc --all) 2>&1 | tee build.log
           # Belt-and-suspenders: even with pipefail, explicitly confirm the
           # actual kernel image exists before calling this step successful,
