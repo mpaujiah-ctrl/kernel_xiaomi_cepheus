@@ -265,9 +265,61 @@ jobs:
 
       - name: Package AnyKernel3 zip
         run: |
+          # This kernel repo does NOT vendor AnyKernel3 — there's no
+          # tracked AnyKernel3/ folder with anykernel.sh/tools/META-INF in
+          # it, which is why the previous zip was just a bare Image.gz-dtb
+          # with no installer scaffolding around it (not flashable). Other
+          # cepheus kernel build scripts in the community all clone the
+          # official template fresh and drop in a device-specific
+          # anykernel.sh, so do the same here.
+          rm -rf AnyKernel3
+          git clone --depth=1 https://github.com/osm0sis/AnyKernel3 AnyKernel3
+
+          # Cepheus device properties, adapted from a working cepheus AK3
+          # config. supported.versions is left blank so the installer
+          # doesn't refuse to flash over version-string mismatches while
+          # this A16 build is still in bring-up/testing.
+          cat > AnyKernel3/anykernel.sh << 'EOF'
+          # AnyKernel3 Ramdisk Mod Script
+          # osm0sis @ xda-developers
+          ## AnyKernel setup
+          # begin properties
+          properties() { '
+          kernel.string=Cepheus A16 KSUN+SUSFS
+          do.devicecheck=1
+          do.modules=0
+          do.systemless=1
+          do.cleanup=1
+          do.cleanuponabort=0
+          device.name1=cepheus
+          device.name2=Cepheus
+          device.name3=cepheus-user
+          device.name4=Mi 9
+          device.name5=Mi9
+          supported.versions=
+          supported.patchlevels=
+          '; } # end properties
+          # shell variables
+          block=/dev/block/bootdevice/by-name/boot; is_slot_device=0; ramdisk_compression=auto;
+          ## AnyKernel methods (DO NOT CHANGE)
+          . tools/ak3-core.sh;
+          ## AnyKernel install
+          dump_boot;
+          write_boot;
+          ## end install
+          EOF
+
+          # Drop in whichever image variant the build actually produced.
           cp out/arch/arm64/boot/Image.gz-dtb AnyKernel3/ 2>/dev/null || \
           cp out/arch/arm64/boot/Image.gz AnyKernel3/ 2>/dev/null || \
           cp out/arch/arm64/boot/Image AnyKernel3/
+
+          # dtbo.img is intentionally NOT included/flashed here: this build
+          # only changed Kconfig (KSU/SUSFS) and didn't touch any .dts
+          # sources, so the dtbo already on the device stays compatible.
+          # If that assumption turns out wrong (boot issues pointing at
+          # devicetree/dtbo mismatch), flag it and we'll add it properly.
+
           cd AnyKernel3
           zip -r9 ../cepheus-a16-ksun${{ github.event.inputs.ksun_version }}-susfs${{ github.event.inputs.susfs_version }}-$(date +%Y%m%d).zip . \
             -x ".git*" -x "README.md"
