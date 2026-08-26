@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       ksun_version:
-        description: "KSUN tag/branch (legacy 3.3.0)"
+        description: "KSUN setup.sh mode: 'legacy' for manual-hook non-GKI trees like this one, or blank/latest for kprobe-based"
         required: false
-        default: "3.3.0"
+        default: "legacy"
       susfs_version:
         description: "SUSFS version tag"
         required: false
@@ -116,21 +116,26 @@ jobs:
           rm -rf KernelSU-Next
           git rm --cached KernelSU-Next 2>/dev/null || true
 
-      - name: Install KernelSU-Next (legacy ${{ github.event.inputs.ksun_version }})
+      - name: Install KernelSU-Next (${{ github.event.inputs.ksun_version }} mode)
         run: |
           curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" \
             | bash -s "${{ github.event.inputs.ksun_version }}"
-          # --- KNOWN FIXUPS from the InfiniR A15 build session, re-apply if
-          # they resurface on this tree (KSUN legacy hook injection can land
-          # in the wrong place relative to existing syscall hooks, and
-          # some versions ship a 2-arg stat hook signature where this base
-          # expects 3-arg). Uncomment/adjust once confirmed against this tree:
+          # --- ROOT CAUSE of the "undefined symbol: ksu_handle_sys_reboot"
+          # failure: KSU-Next has two mutually exclusive integration modes.
+          # Default = kprobe-based (hooks attached dynamically at runtime,
+          # no source patching, and no static ksu_handle_* functions to
+          # link against). "legacy" = manual-hook mode, which patches
+          # do_execve/open/vfs_read/stat/reboot syscalls directly and DOES
+          # define those ksu_handle_* functions statically.
           #
-          # 1) hook injection ordering — verify KernelSU-Next/kernel/*.c hook
-          #    calls are inserted AFTER existing security hooks in
-          #    fs/exec.c / fs/open.c, not before.
-          # 2) stat signature — check fs/stat.c hook arity matches what this
-          #    4.14 tree's vfs_statx / stat wrapper actually passes.
+          # This raystef66 fork's kernel/reboot.c already has the manual
+          # hook call baked in (inherited from an earlier non-GKI
+          # integration), so it needs the "legacy" source variant to match
+          # — passing a version-looking string like "3.3.0" here pulled
+          # the kprobe-based variant instead, which never defines the
+          # symbol the pre-patched reboot.c expects. If kprobes later prove
+          # unreliable on this device (per the InfiniR session's SELinux
+          # issues), that's consistent with staying on "legacy" here.
 
       - name: Apply SUSFS v2.1.0 (backported for non-GKI 4.14)
         run: |
