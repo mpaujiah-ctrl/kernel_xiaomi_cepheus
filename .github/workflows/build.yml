@@ -304,8 +304,8 @@ jobs:
           ## AnyKernel methods (DO NOT CHANGE)
           . tools/ak3-core.sh;
           ## AnyKernel install
-          dump_boot;
-          write_boot;
+          split_boot;
+          flash_boot;
           ## end install
           EOF
 
